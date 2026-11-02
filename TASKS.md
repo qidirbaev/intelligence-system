@@ -1,0 +1,72 @@
+# SIE build plan: small tasks (15-20 min each)
+
+Source of truth for scope: the TZ (v0.1) and `docs/ARCHITECTURE.md`.
+Each task is one working session: implement, test, update this file, hand over a commit.
+
+## Run protocol
+
+1. Start a run by naming the task ("T02", or "next"). Push the previous result to GitHub, or upload the zip.
+2. The run reads `TASKS.md` and `docs/ARCHITECTURE.md`, implements **only that task**, and runs `ruff` and `pytest`.
+3. The run ticks the task below, notes any follow-ups, and delivers a zip plus a suggested commit message.
+4. If a task would overrun ~20 minutes, the run stops at a clean point, marks it `partial` and lists what is left.
+5. Tests never contact Telegram or any third-party platform. Tests that need PostgreSQL carry `@pytest.mark.integration`.
+6. Compliance first: no code path may read a source without a valid access basis (TZ section 2).
+
+Legend: `[x]` done, `[~]` partial, `[ ]` not started.
+
+## Phase 1: Skeleton
+
+| | ID | Task | Deliverables | Done when |
+|---|---|---|---|---|
+| [x] | T01 | Repo scaffold | pyproject, package layout, CLI stub, compose (pgvector), CI, docs | `pytest` and `ruff` pass |
+| [ ] | T02 | Settings, logging, DB session | pydantic-settings config, JSON logging, SQLAlchemy engine/session, provider allow-list config | config loads from env; session opens (Postgres if available in sandbox, else SQLite) |
+| [ ] | T03 | Migration 1 + models | Alembic init; persons, sources, access_basis, agent_state, policy_versions, audit_log; `tenant_id` everywhere | migration up/down works; repo tests pass |
+| [ ] | T04 | Migration 2 + models | content_items, decisions, rechecks, audit_samples, dead_letters, budget_counters | unique key (source_id, platform_msg_id, kind) enforced; upsert test |
+| [ ] | T05 | Permission engine | `compliance/`: access-basis checks CG-1..CG-3, expiry/revocation, denial logging | source without valid basis is always denied; comments denied unless allowed |
+| [ ] | T06 | Policy bundle schema | pydantic models for the YAML bundle, loader, example `policies/policy_v0001.yaml` | example validates; bad bundles give clear errors |
+| [ ] | T07 | Three-valued logic + conditions | TRUE/FALSE/UNKNOWN, all/any/not, condition registry (source_tag, text_matches_topic, view_count_gte, ...) | property-based tests for the truth tables |
+| [ ] | T08 | Rule evaluator | first-match, `on_unknown`, DEFER/recheck info, Decision objects with reasons | table-driven tests incl. stale metrics -> UNKNOWN |
+| [ ] | T09 | Policy manager + CLI | validate (refs, permissions within bases), publish, `effective_from`, active-version lookup, `sie policy ...` | v13 published while v12 active: switch exactly at effective time |
+| [ ] | T10 | Language engine A | NFKC, apostrophe unification, Uzbek Cyrillic -> Latin transliteration | corpus tests (>=50 lines) pass |
+| [ ] | T11 | Language engine B | script detection, language ID (uz/ru/mixed/other), keyword stem compiler + suffix-tolerant matcher, SimHash | matching works across Cyrillic/Latin/Russian fixtures |
+| [ ] | T12 | Envelope + idempotent ingest | envelope model, upsert into content_items, decision write | same envelope twice -> one row |
+| [ ] | T13 | Job queue + workers | Postgres `SKIP LOCKED` queue, leases, backoff, dead letters | killed worker -> job re-leased, no duplicates |
+| [ ] | T14 | Scheduler + agent state | `agent_state`, next_check_at from posting rate, envelope clamps | interval never leaves the envelope |
+| [ ] | T15 | Adapter interface + fake adapter + E2E | `SourceAdapter` protocol, FakeAdapter, pipeline adapter -> ingest -> normalize -> L0 -> decision | synthetic posts flow end to end (Phase 1 milestone) |
+| [ ] | T16 | DROP handling + retention | null text on DROP, audit samples with TTL, retention job | dropped text gone; samples expire |
+| [ ] | T17 | DEFER rechecks | decaying schedule, metric freshness, re-evaluate under **current** policy | pending recheck uses new version after publish |
+| [ ] | T18 | Telegram adapter (read-only) | Telethon adapter behind the gate, error classification (flood wait, ban), encrypted session helper, dev runbook | unit tests with mocked client; never runs in CI |
+
+## Phase 2: Understanding
+
+| | ID | Task | Deliverables | Done when |
+|---|---|---|---|---|
+| [ ] | T19 | Embedder | interface, fake embedder, sentence-transformers implementation, pgvector column with numpy fallback | similar texts score higher than unrelated ones |
+| [ ] | T20 | L1 clustering | assign/create events, centroid, time window | 200 reposts -> 1 event; unrelated -> separate |
+| [ ] | T21 | Escalation | score, controller, `research_tasks`, one open task per event, material-change re-escalation | budget exhausted -> no new task |
+| [ ] | T22 | LLM client + budgets | provider interface, allow-list enforcement, FakeLLM, budget counters, prompt registry | non-allow-listed provider refused |
+| [ ] | T23 | Brain tasks | `event_summarize`, `stance_extract`, schema validation, evidence ids, version stamps | output without evidence ids rejected |
+| [ ] | T24 | Views + read API | SQL views, FastAPI endpoints for topics, events, stances | endpoints return seeded demo data |
+
+## Phase 3: Comments and evaluation
+
+| | ID | Task | Deliverables | Done when |
+|---|---|---|---|---|
+| [ ] | T25 | Comments path A | gated comment fetch hook (CG-3), counting, reproducible sampling, Wilson interval | CI width shrinks with sample size |
+| [ ] | T26 | Comments path B | rules + classifier interface, `coordinated_burst`, `attention_queue`, retention, hash-only authors | no author names stored; queue items expire |
+| [ ] | T27 | Labeled sets + eval CLI | file formats, `sie eval ...` (recall, precision, F1, agreement) | metrics computed on a sample set |
+| [ ] | T28 | Budget manager | daily caps, queue-depth thresholds, degraded mode, reserved on-demand share | load test enters and leaves degraded mode |
+
+## Phase 4: Demo
+
+| | ID | Task | Deliverables | Done when |
+|---|---|---|---|---|
+| [ ] | T29 | Mode B research | plan -> retrieve -> synthesize -> verify, report schema | unsupported statements removed or marked |
+| [ ] | T30 | Dashboard | Streamlit pages: overview, topic, attention, ask, policy | pages render on demo data |
+| [ ] | T31 | Observability | `/metrics`, operations page, audit-sample recall estimate | counters visible per stage |
+| [ ] | T32 | Hardening + demo | chaos/replay/compliance suites, demo script, README | acceptance criteria AC-1..AC-8 checked |
+
+## Notes and follow-ups
+
+- Telegram permission (Phase 0 in the TZ) runs in parallel; until it is granted, only own channels and synthetic data are used.
+- Packages pinned loosely for now; pin exact versions at T32.

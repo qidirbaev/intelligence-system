@@ -1,0 +1,19 @@
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-sie}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sie_dev_only}
+      POSTGRES_DB: ${POSTGRES_DB:-sie}
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - sie_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-sie} -d ${POSTGRES_DB:-sie}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  sie_pgdata:
