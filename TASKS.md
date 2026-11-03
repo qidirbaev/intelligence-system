@@ -20,7 +20,7 @@ Legend: `[x]` done, `[~]` partial, `[ ]` not started.
 |---|---|---|---|---|
 | [x] | T01 | Repo scaffold | pyproject, package layout, CLI stub, compose (pgvector), CI, docs | `pytest` and `ruff` pass |
 | [x] | T02 | Settings, logging, DB session | pydantic-settings config, JSON logging, SQLAlchemy engine/session, provider allow-list config | config loads from env; session opens (Postgres if available in sandbox, else SQLite) |
-| [ ] | T03 | Migration 1 + models | Alembic init; persons, sources, access_basis, agent_state, policy_versions, audit_log; `tenant_id` everywhere | migration up/down works; repo tests pass |
+| [x] | T03 | Migration 1 + models | Alembic init; persons, sources, access_basis, agent_state, policy_versions, audit_log; `tenant_id` everywhere | migration up/down works; repo tests pass |
 | [ ] | T04 | Migration 2 + models | content_items, decisions, rechecks, audit_samples, dead_letters, budget_counters | unique key (source_id, platform_msg_id, kind) enforced; upsert test |
 | [ ] | T05 | Permission engine | `compliance/`: access-basis checks CG-1..CG-3, expiry/revocation, denial logging | source without valid basis is always denied; comments denied unless allowed |
 | [ ] | T06 | Policy bundle schema | pydantic models for the YAML bundle, loader, example `policies/policy_v0001.yaml` | example validates; bad bundles give clear errors |
@@ -75,3 +75,12 @@ Legend: `[x]` done, `[~]` partial, `[ ]` not started.
 - T02: `sie.logging_setup` redacts secret-looking extra fields; never put credentials in log messages themselves.
 - Telegram permission (Phase 0 in the TZ) runs in parallel; until it is granted, only own channels and synthetic data are used.
 - Packages pinned loosely for now; pin exact versions at T32.
+- T03: migrations are hand-written and self-contained (`src/sie/storage/migrations/versions/`); a test compares
+  models with the migrated schema, so a model change without a migration fails CI. Constraint names come from the
+  naming convention in `storage/base.py`; give CHECK constraints a short `name=` (the convention prefixes it).
+- T03: **for T04**: add models in `storage/models/` and a new revision `0002`; extend `ALL_TABLES` in
+  `tests/conftest.py` (the Postgres test fixture TRUNCATEs that list); extend `EXPECTED_TABLES` and the
+  `0001` head assertion in `tests/test_migrations.py`.
+- T03: datetimes are UTC-aware only (`UTCDateTime` rejects naive values). Enums are plain text + CHECK.
+  `audit_log` is append-only (Postgres trigger). `access_basis` rows are never deleted, only revoked.
+- T03: `storage/repos.py` helpers never commit; the caller owns the transaction (`session_scope`).

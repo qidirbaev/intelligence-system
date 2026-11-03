@@ -51,3 +51,12 @@ def test_cli_db_ping_failure(monkeypatch):
     monkeypatch.setenv("DATABASE_URL", "sqlite+pysqlite:////nonexistent_dir_for_sie/x.db")
     result = CliRunner().invoke(app, ["db-ping"])
     assert result.exit_code == 1
+
+
+def test_cli_migration_commands(monkeypatch, tmp_path):
+    monkeypatch.setenv("DATABASE_URL", f"sqlite+pysqlite:///{tmp_path / 'cli.db'}")
+    runner = CliRunner()
+    assert runner.invoke(app, ["db-current"]).stdout.strip() == "none"
+    assert "0001" in runner.invoke(app, ["db-upgrade"]).stdout
+    assert runner.invoke(app, ["db-current"]).stdout.strip() == "0001"
+    assert "None" in runner.invoke(app, ["db-downgrade", "base"]).stdout

@@ -66,6 +66,10 @@ def configure_logging(level: str = "INFO", json_output: bool = True, stream=None
     handler._sie_handler = True  # type: ignore[attr-defined]
     root.addHandler(handler)
     root.setLevel(level.upper())
+    # Third-party migration chatter stays quiet unless we are debugging.
+    logging.getLogger("alembic").setLevel(
+        logging.DEBUG if root.level == logging.DEBUG else logging.WARNING
+    )
 
 
 def get_logger(name: str) -> logging.Logger:

@@ -55,3 +55,7 @@ a sampled path for sentiment and an attention path for flagged comments.
 - Database access only through `sie.storage.db.session_scope()` (commit on success, rollback on error).
 - Model providers only via `ProviderRegistry.require()` (default deny, CG-6).
 - Every table has `tenant_id` (a single fixed value in the MVP).
+- Schema changes only through Alembic revisions (`sie db-upgrade`). Enums are text + CHECK, JSON is JSONB on
+  PostgreSQL, datetimes are timezone-aware UTC (`sie.storage.types.UTCDateTime`).
+- Repository helpers (`sie.storage.repos`) flush but never commit; the caller owns the transaction.
+- Compliance records are not deleted: bases are revoked (`revoked_at`) and every change is audited (`audit_log`).

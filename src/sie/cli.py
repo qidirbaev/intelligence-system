@@ -5,7 +5,8 @@ import typer
 from sie import __version__
 from sie.config import get_settings
 from sie.logging_setup import configure_logging
-from sie.storage.db import ping
+from sie.storage import migrate
+from sie.storage.db import get_engine, ping
 
 app = typer.Typer(help="SIE command-line tools", no_args_is_help=True)
 
@@ -31,6 +32,26 @@ def db_ping() -> None:
     else:
         typer.echo("database: unreachable", err=True)
         raise typer.Exit(code=1)
+
+
+@app.command("db-upgrade")
+def db_upgrade(revision: str = typer.Argument("head", help="target revision")) -> None:
+    """Apply database migrations up to REVISION (default: head)."""
+    migrate.upgrade(get_engine(), revision)
+    typer.echo(f"database at revision: {migrate.current_revision(get_engine())}")
+
+
+@app.command("db-downgrade")
+def db_downgrade(revision: str = typer.Argument(..., help="target revision, e.g. base")) -> None:
+    """Roll migrations back to REVISION."""
+    migrate.downgrade(get_engine(), revision)
+    typer.echo(f"database at revision: {migrate.current_revision(get_engine())}")
+
+
+@app.command("db-current")
+def db_current() -> None:
+    """Show the current migration revision."""
+    typer.echo(migrate.current_revision(get_engine()) or "none")
 
 
 if __name__ == "__main__":

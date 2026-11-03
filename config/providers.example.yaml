@@ -1,0 +1,18 @@
+# Model-provider allow-list (compliance CG-6). Copy to config/providers.yaml and set
+# SIE_PROVIDERS_FILE=config/providers.yaml. Anything not listed here is refused.
+providers:
+  - name: local-embedder
+    kind: embedding
+    location: self-hosted
+    data_use_terms: runs on our own machine; nothing leaves it
+  - name: fake-llm
+    kind: llm
+    location: self-hosted
+    data_use_terms: test double, returns canned output
+  # A provider outside the approved region needs a legal sign-off reference:
+  # - name: example-api
+  #   kind: llm
+  #   location: US
+  #   data_use_terms: no training on inputs, 30-day retention (verify against the contract)
+  #   cross_border: true
+  #   approved_ref: legal-opinion-2026-12-01

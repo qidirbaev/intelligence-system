@@ -24,6 +24,7 @@ make up             # PostgreSQL with pgvector (for integration tests)
 make test-int       # integration tests against PostgreSQL
 sie version
 sie db-ping         # checks DATABASE_URL
+sie db-upgrade      # apply migrations (also: db-downgrade, db-current)
 ```
 
 ## Layout
