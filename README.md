@@ -17,11 +17,13 @@ Until that is settled, develop and test with your own channels and synthetic dat
 ```bash
 python -m venv .venv && . .venv/bin/activate
 make install        # pip install -e ".[dev]"
-make test           # unit tests
+make test           # unit tests (no services needed)
 make lint
 cp .env.example .env
 make up             # PostgreSQL with pgvector (for integration tests)
+make test-int       # integration tests against PostgreSQL
 sie version
+sie db-ping         # checks DATABASE_URL
 ```
 
 ## Layout

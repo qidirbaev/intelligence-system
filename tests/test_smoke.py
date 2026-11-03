@@ -38,3 +38,16 @@ def test_cli_version():
 def test_subpackage_importable(name):
     module = importlib.import_module(f"sie.{name}")
     assert module.__doc__, f"sie.{name} needs a docstring stating its responsibility"
+
+
+def test_cli_db_ping_ok(monkeypatch):
+    monkeypatch.setenv("DATABASE_URL", "sqlite+pysqlite:///:memory:")
+    result = CliRunner().invoke(app, ["db-ping"])
+    assert result.exit_code == 0
+    assert "ok" in result.output
+
+
+def test_cli_db_ping_failure(monkeypatch):
+    monkeypatch.setenv("DATABASE_URL", "sqlite+pysqlite:////nonexistent_dir_for_sie/x.db")
+    result = CliRunner().invoke(app, ["db-ping"])
+    assert result.exit_code == 1

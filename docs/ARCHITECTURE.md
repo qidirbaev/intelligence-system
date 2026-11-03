@@ -50,5 +50,8 @@ a sampled path for sentiment and an attention path for flagged comments.
 
 - Python 3.12, type hints, `ruff` (line length 100), `pytest`. Small modules, interfaces for adapter, LLM, embedder.
 - Tests: unit tests need no services; integration tests use `@pytest.mark.integration` and PostgreSQL.
-- Config in files and environment (`.env`, never committed). Logging is structured JSON.
+- Config via `sie.config.get_settings()` (env prefix `SIE_`; `.env` never committed). Logging is structured JSON
+  via `sie.logging_setup`; secret-looking fields are redacted.
+- Database access only through `sie.storage.db.session_scope()` (commit on success, rollback on error).
+- Model providers only via `ProviderRegistry.require()` (default deny, CG-6).
 - Every table has `tenant_id` (a single fixed value in the MVP).

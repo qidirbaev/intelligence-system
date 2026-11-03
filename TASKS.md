@@ -19,7 +19,7 @@ Legend: `[x]` done, `[~]` partial, `[ ]` not started.
 | | ID | Task | Deliverables | Done when |
 |---|---|---|---|---|
 | [x] | T01 | Repo scaffold | pyproject, package layout, CLI stub, compose (pgvector), CI, docs | `pytest` and `ruff` pass |
-| [ ] | T02 | Settings, logging, DB session | pydantic-settings config, JSON logging, SQLAlchemy engine/session, provider allow-list config | config loads from env; session opens (Postgres if available in sandbox, else SQLite) |
+| [x] | T02 | Settings, logging, DB session | pydantic-settings config, JSON logging, SQLAlchemy engine/session, provider allow-list config | config loads from env; session opens (Postgres if available in sandbox, else SQLite) |
 | [ ] | T03 | Migration 1 + models | Alembic init; persons, sources, access_basis, agent_state, policy_versions, audit_log; `tenant_id` everywhere | migration up/down works; repo tests pass |
 | [ ] | T04 | Migration 2 + models | content_items, decisions, rechecks, audit_samples, dead_letters, budget_counters | unique key (source_id, platform_msg_id, kind) enforced; upsert test |
 | [ ] | T05 | Permission engine | `compliance/`: access-basis checks CG-1..CG-3, expiry/revocation, denial logging | source without valid basis is always denied; comments denied unless allowed |
@@ -68,5 +68,10 @@ Legend: `[x]` done, `[~]` partial, `[ ]` not started.
 
 ## Notes and follow-ups
 
+- T02: unit tests use in-memory SQLite; `@pytest.mark.integration` tests use real PostgreSQL 16 + pgvector
+  (`make up`, or a local server). Set `SIE_TEST_DATABASE_URL` to point them elsewhere; they skip if unreachable.
+- T02: `sie.compliance.providers.ProviderRegistry` is the CG-6 allow-list (default deny). T22 must route every
+  LLM/embedding call through `registry.require(...)`.
+- T02: `sie.logging_setup` redacts secret-looking extra fields; never put credentials in log messages themselves.
 - Telegram permission (Phase 0 in the TZ) runs in parallel; until it is granted, only own channels and synthetic data are used.
 - Packages pinned loosely for now; pin exact versions at T32.
