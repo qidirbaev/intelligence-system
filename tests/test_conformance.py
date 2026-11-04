@@ -104,3 +104,14 @@ def test_every_task_is_a_known_requirement_target():
     tasks = traceability.parse_tasks((ROOT / "TASKS.md").read_text(encoding="utf-8"))
     assert tasks, "no tasks parsed from TASKS.md"
     assert all(re.fullmatch(r"T\d{2}[a-z]?", t) for t in tasks)
+
+
+def test_l1_and_brain_never_read_audit_samples():
+    """Audit samples exist only to estimate L0 recall (TZ 5.5); analysis code must not read them."""
+    offenders = {}
+    for package in ("l1", "brain", "comments", "api", "dashboard"):
+        for path in python_files(f"src/sie/{package}"):
+            text = path.read_text(encoding="utf-8").lower()
+            if "audit_sample" in text or "auditsample" in text:
+                offenders[str(path.relative_to(ROOT))] = "references audit samples"
+    assert offenders == {}, offenders

@@ -30,7 +30,7 @@ Legend: `[x]` done, `[~]` partial, `[ ]` not started.
 | [x] | T02 | Settings, logging, DB session | pydantic-settings config, JSON logging, SQLAlchemy engine/session, provider allow-list config | config loads from env; session opens (Postgres if available in sandbox, else SQLite) |
 | [x] | T03 | Migration 1 + models | Alembic init; persons, sources, access_basis, agent_state, policy_versions, audit_log; `tenant_id` everywhere | migration up/down works; repo tests pass |
 | [x] | T03a | Verification harness | `tools/verify.py`, `tools/demo.py`, requirements register `docs/TRACEABILITY.md` with checker, tripwire tests, network guard | `python tools/verify.py` is green |
-| [ ] | T04 | Migration 2 + models | content_items, decisions, rechecks, audit_samples, dead_letters, budget_counters, **operator_tasks** (gap found in the TZ: CG-4 needs a queue for access problems) | unique key (source_id, platform_msg_id, kind) enforced; upsert test |
+| [x] | T04 | Migration 2 + models | content_items, decisions, rechecks, audit_samples, dead_letters, budget_counters, **operator_tasks** (gap found in the TZ: CG-4 needs a queue for access problems) | unique key (source_id, platform_msg_id, kind) enforced; upsert test |
 | [ ] | T05 | Permission engine | `compliance/`: access-basis checks CG-1..CG-3, expiry/revocation, denial logging | source without valid basis is always denied; comments denied unless allowed |
 | [ ] | T06 | Policy bundle schema | pydantic models for the YAML bundle, loader, example `policies/policy_v0001.yaml` | example validates; bad bundles give clear errors |
 | [ ] | T07 | Three-valued logic + conditions | TRUE/FALSE/UNKNOWN, all/any/not, condition registry (source_tag, text_matches_topic, view_count_gte, ...) | property-based tests for the truth tables |
@@ -42,7 +42,7 @@ Legend: `[x]` done, `[~]` partial, `[ ]` not started.
 | [ ] | T13 | Job queue + workers | Postgres `SKIP LOCKED` queue, leases, backoff, dead letters | killed worker -> job re-leased, no duplicates |
 | [ ] | T14 | Scheduler + agent state | `agent_state`, next_check_at from posting rate, envelope clamps | interval never leaves the envelope |
 | [ ] | T15 | Adapter interface + fake adapter + E2E | `SourceAdapter` protocol, FakeAdapter, pipeline adapter -> ingest -> normalize -> L0 -> decision | synthetic posts flow end to end (Phase 1 milestone) |
-| [ ] | T16 | DROP handling + retention | null text on DROP, audit samples with TTL, retention job | dropped text gone; samples expire |
+| [ ] | T16 | DROP handling + retention | null text on DROP, audit samples with TTL, retention job (purges expired audit samples and dead letters), **revocation hook: revoking an access basis flags that source's items for review or deletion (CG-7)** | dropped text gone; samples expire |
 | [ ] | T17 | DEFER rechecks | decaying schedule, metric freshness, re-evaluate under **current** policy | pending recheck uses new version after publish |
 | [ ] | T18 | Telegram adapter (read-only) | Telethon adapter behind the gate, error classification (flood wait, ban), encrypted session helper, dev runbook | unit tests with mocked client; never runs in CI |
 
@@ -101,4 +101,13 @@ Legend: `[x]` done, `[~]` partial, `[ ]` not started.
   rejected INSERT. Rows are rolled back and all checks pass, so it is treated as harmless noise and silenced in the
   demo only. If it ever appears in real logs during normal operation, investigate (SQLAlchemy insertmanyvalues +
   psycopg pipeline mode).
+- T04: the schema itself enforces requirement U-06: an item with status `dropped` cannot hold `text_raw` or
+  `text_norm` (CHECK `dropped_has_no_text`). T16 only has to null the text and keep ids/hashes/decision.
+- T04: `repos_content.upsert_content_item` is the idempotent insert (unique key `source_id + platform_msg_id + kind`,
+  an existing item is never overwritten). T12 should build on it instead of writing another upsert.
+- T04: `audit_samples` and `dead_letters` have a mandatory `expires_at`; the purge job is T16. `budget_counters`
+  exists; T28 adds the atomic increment. `operator_tasks` details are redacted and links must be plain https.
+- T04 gap found: CG-7 says revoking a basis must flag derived data, but no task covered it; added to T16.
+- Reminder: after a break, PostgreSQL may be down and database tests silently SKIP under plain `pytest`.
+  `python tools/verify.py` treats skips as failures, so always finish with it.
 

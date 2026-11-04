@@ -1,10 +1,12 @@
 import importlib
 
 import pytest
+from alembic.script import ScriptDirectory
 from typer.testing import CliRunner
 
 import sie
 from sie.cli import app
+from sie.storage import migrate
 
 SUBPACKAGES = [
     "compliance",
@@ -57,6 +59,7 @@ def test_cli_migration_commands(monkeypatch, tmp_path):
     monkeypatch.setenv("DATABASE_URL", f"sqlite+pysqlite:///{tmp_path / 'cli.db'}")
     runner = CliRunner()
     assert runner.invoke(app, ["db-current"]).stdout.strip() == "none"
-    assert "0001" in runner.invoke(app, ["db-upgrade"]).stdout
-    assert runner.invoke(app, ["db-current"]).stdout.strip() == "0001"
+    head = ScriptDirectory.from_config(migrate.alembic_config()).get_current_head()
+    assert head in runner.invoke(app, ["db-upgrade"]).stdout
+    assert runner.invoke(app, ["db-current"]).stdout.strip() == head
     assert "None" in runner.invoke(app, ["db-downgrade", "base"]).stdout

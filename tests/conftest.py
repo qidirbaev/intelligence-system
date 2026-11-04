@@ -15,7 +15,11 @@ _ENV_PREFIXES = ("SIE_",)
 _ENV_NAMES = ("DATABASE_URL", "TELEGRAM_API_ID", "TELEGRAM_API_HASH")
 _KEEP = {"SIE_TEST_DATABASE_URL"}  # test-infrastructure setting, not application config
 
-ALL_TABLES = "persons, sources, access_basis, agent_state, policy_versions, audit_log"
+ALL_TABLES = (
+    "persons, sources, access_basis, agent_state, policy_versions, audit_log, "
+    "content_items, decisions, rechecks, audit_samples, dead_letters, budget_counters, "
+    "operator_tasks"
+)
 
 
 def _base_pg_url() -> str:

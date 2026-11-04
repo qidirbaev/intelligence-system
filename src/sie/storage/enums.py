@@ -28,6 +28,62 @@ class PolicyStatus(StrEnum):
     RETIRED = "retired"
 
 
+class ContentKind(StrEnum):
+    POST = "post"
+    COMMENT = "comment"  # comments are not stored as items by default (TZ section 7)
+
+
+class ContentStatus(StrEnum):
+    """Lifecycle of an item (TZ 20.3). `dropped` items hold no text (requirement U-06)."""
+
+    COLLECTED = "collected"
+    DEFERRED = "deferred"
+    PASSED = "passed"
+    DROPPED = "dropped"
+    ANALYZED = "analyzed"
+
+
+class Outcome(StrEnum):
+    """L0 decision outcomes (TZ 5.4)."""
+
+    PASS = "PASS"
+    DEFER = "DEFER"
+    DROP = "DROP"
+    REQUEST_LIMITED = "REQUEST_LIMITED"
+
+
+class Lang(StrEnum):
+    UZ = "uz"
+    RU = "ru"
+    MIXED = "mixed"
+    OTHER = "other"
+
+
+class Script(StrEnum):
+    LATIN = "latin"
+    CYRILLIC = "cyrillic"
+    CYRILLIC_TO_LATIN = "cyrillic_to_latin"
+    MIXED = "mixed"
+
+
+class OperatorCategory(StrEnum):
+    """Why a human is needed (CG-4). Humans use authorized paths only, never raw credentials."""
+
+    FLOOD_WAIT = "flood_wait"
+    ACCESS_DENIED = "access_denied"
+    SESSION_REVOKED = "session_revoked"
+    CHALLENGE_REQUIRED = "challenge_required"
+    ACCOUNT_BANNED = "account_banned"
+    OTHER = "other"
+
+
+class OperatorTaskStatus(StrEnum):
+    OPEN = "open"
+    IN_PROGRESS = "in_progress"
+    RESOLVED = "resolved"
+    DISMISSED = "dismissed"
+
+
 def values(enum_cls: type[StrEnum]) -> list[str]:
     return [member.value for member in enum_cls]
 

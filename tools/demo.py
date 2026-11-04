@@ -1,8 +1,7 @@
 """End-to-end demo of what the project can do *today*. Extended by every task (see TASKS.md).
 
-At task T03a it covers the registry and the compliance records only: sources, access bases,
-audit trail and policy-version rules, all against a real database. The full pipeline demo
-arrives with T15 and T32.
+Today it covers the registry, compliance records, collected items, decisions and the operator
+queue, all against a real database. The full pipeline demo arrives with T15 and T32.
 
 Usage: python tools/demo.py [--database-url URL]   (default: a throw-away PostgreSQL database)
 """
@@ -17,10 +16,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from sqlalchemy import select  # noqa: E402
 from sqlalchemy.exc import DBAPIError  # noqa: E402
 
-from sie.storage import migrate, repos  # noqa: E402
+from sie.storage import migrate, repos, repos_content, repos_ops  # noqa: E402
 from sie.storage.db import make_engine, make_session_factory, session_scope  # noqa: E402
 from sie.storage.enums import AccessBasisType  # noqa: E402
-from sie.storage.models import AuditLog, PolicyVersion, Source  # noqa: E402
+from sie.storage.models import AuditLog, ContentItem, PolicyVersion, Source  # noqa: E402
 from sie.storage.types import utcnow  # noqa: E402
 from tools import pgtemp  # noqa: E402
 
@@ -43,7 +42,7 @@ def run(url: str) -> int:
         try:
             with session_scope(factory) as session:
                 action(session)
-        except DBAPIError:
+        except (DBAPIError, ValueError):
             checks += 1
             say(f"   rejected, as it must be: {label}")
         else:
@@ -114,8 +113,66 @@ def run(url: str) -> int:
     else:
         say("9. (audit-log tamper check runs on PostgreSQL only)")
 
+    # ---- T04: collected items, drops, decisions, operator tasks ----
+    published = utcnow()
+    with session_scope(factory) as session:
+        first, created = repos_content.upsert_content_item(
+            session, source_id=source_id, platform_msg_id="48213", published_at=published,
+            text_raw="BRT announcement", text_norm="brt announcement", lang="uz", script="latin",
+        )  # fmt: skip
+        again, created_again = repos_content.upsert_content_item(
+            session, source_id=source_id, platform_msg_id="48213", published_at=published,
+            text_raw="an edited copy",
+        )  # fmt: skip
+        assert created and not created_again and first.item_id == again.item_id
+        item_id = first.item_id
+        checks += 1
+        say("10. the same Telegram message ingested twice -> still ONE item, original text kept")
+
+    def mark_dropped_keeping_text(s):
+        s.get(ContentItem, item_id).status = "dropped"
+
+    must_reject(
+        "11. marking an item dropped while it still holds its text", mark_dropped_keeping_text
+    )
+
+    with session_scope(factory) as session:
+        stored = session.get(ContentItem, item_id)
+        stored.text_raw = stored.text_norm = None
+        stored.status = "dropped"
+        decision = repos_content.record_decision(session, item_id, 2, "default", "DROP", {})
+        repos_content.add_audit_sample(session, item_id, decision.decision_id, "brt announcement")
+        say("12. dropped it properly: text removed, decision logged, 3-day audit sample kept")
+
+    with session_scope(factory) as session:
+        task = repos_ops.open_operator_task(
+            session, "session_revoked", "Telegram session ended for demo_channel",
+            source_id=source_id, team="team-a",
+            detail={"api_hash": "THIS-MUST-NOT-BE-STORED", "note": "owner must log in again"},
+        )  # fmt: skip
+        assert "THIS-MUST-NOT" not in str(task.detail)
+        task_id = task.task_id
+        checks += 1
+        say(f"13. operator task opened; secrets were masked before storing: {task.detail}")
+
+    must_reject(
+        "14. an operator task link that carries a token",
+        lambda s: repos_ops.open_operator_task(
+            s, "access_denied", "recovery", account_link="https://example.org/recover?token=abc"
+        ),
+    )
+
+    with session_scope(factory) as session:
+        repos_ops.resolve_operator_task(
+            session, task_id, resolved_by="operator:demo", resolution="owner logged in again"
+        )
+        recent = session.scalars(
+            select(AuditLog.action).order_by(AuditLog.audit_id.desc()).limit(2)
+        ).all()
+        say(f"15. task resolved by a human; latest audit entries: {', '.join(reversed(recent))}")
+
     engine.dispose()
-    say(f"DEMO OK ({checks} protections verified). Covers registry + compliance records only.")
+    say(f"DEMO OK ({checks} protections verified; storage and compliance only).")
     return 0
 
 

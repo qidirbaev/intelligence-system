@@ -11,7 +11,7 @@ from sie.storage.base import Base
 from sie.storage.db import make_engine
 from tests.conftest import temp_postgres_database
 
-EXPECTED_TABLES = {
+FIRST_MIGRATION_TABLES = {
     "access_basis",
     "agent_state",
     "audit_log",
@@ -19,21 +19,30 @@ EXPECTED_TABLES = {
     "policy_versions",
     "sources",
 }
+EXPECTED_TABLES = FIRST_MIGRATION_TABLES | {
+    "audit_samples",
+    "budget_counters",
+    "content_items",
+    "dead_letters",
+    "decisions",
+    "operator_tasks",
+    "rechecks",
+}
 
 
 def user_tables(engine) -> set[str]:
     return set(inspect(engine).get_table_names()) - {"alembic_version"}
 
 
-def test_single_head_is_0001():
+def test_single_head_is_0002():
     script = ScriptDirectory.from_config(migrate.alembic_config())
-    assert script.get_heads() == ["0001"]
+    assert script.get_heads() == ["0002"]
 
 
 def test_sqlite_round_trip(sqlite_engine):
     assert migrate.current_revision(sqlite_engine) is None
     migrate.upgrade(sqlite_engine)
-    assert migrate.current_revision(sqlite_engine) == "0001"
+    assert migrate.current_revision(sqlite_engine) == "0002"
     assert user_tables(sqlite_engine) == EXPECTED_TABLES
     migrate.downgrade(sqlite_engine, "base")
     assert user_tables(sqlite_engine) == set()
@@ -143,3 +152,55 @@ def test_drift_detector_is_not_vacuous(sqlite_engine):
         diff = compare_metadata(context, MetaData())
     removed = {entry[1].name for entry in diff if entry[0] == "remove_table"}
     assert EXPECTED_TABLES <= removed
+
+
+def test_downgrade_one_step_keeps_the_first_migration(sqlite_engine):
+    migrate.upgrade(sqlite_engine)
+    migrate.downgrade(sqlite_engine, "0001")
+    assert migrate.current_revision(sqlite_engine) == "0001"
+    assert user_tables(sqlite_engine) == FIRST_MIGRATION_TABLES
+    migrate.upgrade(sqlite_engine)
+    assert user_tables(sqlite_engine) == EXPECTED_TABLES
+
+
+@pytest.mark.integration
+def test_postgres_step_down_and_up_keeps_data_of_the_first_migration():
+    from sie.storage import repos
+    from sie.storage.db import make_session_factory, session_scope
+
+    with temp_postgres_database() as url:
+        engine = make_engine(url)
+        migrate.upgrade(engine)
+        factory = make_session_factory(engine)
+        with session_scope(factory) as s:
+            repos.add_source(s, "telegram", "keep_me")
+        migrate.downgrade(engine, "0001")
+        assert user_tables(engine) == FIRST_MIGRATION_TABLES
+        migrate.upgrade(engine)
+        with session_scope(factory) as s:
+            assert repos.get_source(s, "telegram", "keep_me") is not None
+        engine.dispose()
+
+
+@pytest.mark.integration
+def test_postgres_new_json_columns_are_jsonb():
+    with temp_postgres_database() as url:
+        engine = make_engine(url)
+        migrate.upgrade(engine)
+        with engine.connect() as c:
+            types = dict(
+                c.execute(
+                    text(
+                        "SELECT table_name || '.' || column_name, data_type "
+                        "FROM information_schema.columns WHERE data_type IN ('jsonb', 'json')"
+                    )
+                ).all()
+            )
+        for column in (
+            "content_items.metrics",
+            "decisions.reasons",
+            "dead_letters.envelope",
+            "operator_tasks.detail",
+        ):
+            assert types[column] == "jsonb", column
+        engine.dispose()

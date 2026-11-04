@@ -29,6 +29,9 @@ a sampled path for sentiment and an attention path for flagged comments.
    The cursor advances only after durable writes.
 10. **No secrets in the repo.** Sessions, API keys and the HMAC secret come from the environment.
 
+11. **The schema backs the rules.** A `dropped` item cannot keep text (CHECK), audit samples and dead letters must
+    expire, operator tasks cannot carry credentials, decisions must cite a real policy version.
+
 ## Module map (`src/sie/`)
 
 | Package | Responsibility | Tasks |
