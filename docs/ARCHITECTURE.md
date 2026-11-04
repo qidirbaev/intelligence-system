@@ -48,6 +48,12 @@ a sampled path for sentiment and an attention path for flagged comments.
 
 ## Conventions
 
+- **Definition of done:** `python tools/verify.py` is green (clean virtualenv, lint, all tests with zero skips,
+  migrations via the CLI, `tools/demo.py`, requirements register). `tools/demo.py` is extended by every task.
+- **Scope control:** `docs/TRACEABILITY.md` maps every task to something you asked for. A task nobody asked for,
+  or a status that contradicts `TASKS.md`, fails the build. Differences from your brief are listed as deviations.
+- **Tripwires** (`tests/test_conformance.py`): no evasion tooling in the code or dependencies, no internet in tests,
+  tenant_id on every table, comments denied by default.
 - Python 3.12, type hints, `ruff` (line length 100), `pytest`. Small modules, interfaces for adapter, LLM, embedder.
 - Tests: unit tests need no services; integration tests use `@pytest.mark.integration` and PostgreSQL.
 - Config via `sie.config.get_settings()` (env prefix `SIE_`; `.env` never committed). Logging is structured JSON

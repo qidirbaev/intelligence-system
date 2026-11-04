@@ -1,11 +1,11 @@
 import os
+import socket
 from contextlib import contextmanager
-from uuid import uuid4
 
 import pytest
 from sqlalchemy import text
-from sqlalchemy.engine import make_url
 from sqlalchemy.exc import OperationalError
+from tools import pgtemp
 
 from sie.config import DEV_DATABASE_URL, clear_settings_cache
 from sie.storage import migrate
@@ -40,24 +40,11 @@ def clean_environment(monkeypatch):
 @contextmanager
 def temp_postgres_database():
     """A throw-away PostgreSQL database (created, yielded as a URL string, dropped)."""
-    base = _base_pg_url()
-    admin = make_engine(base, isolation_level="AUTOCOMMIT")
     try:
-        with admin.connect():
-            pass
-    except OperationalError:
-        admin.dispose()
-        pytest.skip(f"PostgreSQL not reachable at {base} (run: make up)")
-    name = f"sie_test_{uuid4().hex[:12]}"
-    with admin.connect() as conn:
-        conn.execute(text(f"CREATE DATABASE {name}"))
-    url = make_url(base).set(database=name).render_as_string(hide_password=False)
-    try:
-        yield url
-    finally:
-        with admin.connect() as conn:
-            conn.execute(text(f"DROP DATABASE IF EXISTS {name} WITH (FORCE)"))
-        admin.dispose()
+        with pgtemp.temp_database(_base_pg_url()) as url:
+            yield url
+    except pgtemp.PostgresUnavailable as exc:
+        pytest.skip(str(exc))
 
 
 @pytest.fixture
@@ -113,3 +100,37 @@ def session(engine):
     yield s
     s.rollback()
     s.close()
+
+
+class NetworkBlocked(RuntimeError):
+    """Raised when a test (or code under test) tries to open a non-local network connection."""
+
+
+def _is_local(host: str) -> bool:
+    return host in ("localhost", "::1") or host.startswith("127.")
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _block_external_network():
+    """Tests must never reach Telegram or any third party (TASKS.md rule 5, requirement A-08).
+
+    Only loopback connections are allowed (the local PostgreSQL). psycopg's libpq talks to the
+    database outside Python sockets, which is fine because that target is the local server.
+    """
+    real_connect, real_connect_ex = socket.socket.connect, socket.socket.connect_ex
+
+    def check(sock, address):
+        if sock.family in (socket.AF_INET, socket.AF_INET6) and not _is_local(str(address[0])):
+            raise NetworkBlocked(f"tests may not connect to {address[0]}:{address[1]}")
+
+    def guarded_connect(self, address):
+        check(self, address)
+        return real_connect(self, address)
+
+    def guarded_connect_ex(self, address):
+        check(self, address)
+        return real_connect_ex(self, address)
+
+    socket.socket.connect, socket.socket.connect_ex = guarded_connect, guarded_connect_ex
+    yield
+    socket.socket.connect, socket.socket.connect_ex = real_connect, real_connect_ex
