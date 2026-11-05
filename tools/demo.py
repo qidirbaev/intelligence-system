@@ -1,7 +1,8 @@
 """End-to-end demo of what the project can do *today*. Extended by every task (see TASKS.md).
 
-Today it covers the registry, compliance records, collected items, decisions and the operator
-queue, all against a real database. The full pipeline demo arrives with T15 and T32.
+Today it covers the registry, compliance records and the permission gate, collected items,
+decisions and the operator queue, all against a real database. The full pipeline demo
+arrives with T15 and T32.
 
 Usage: python tools/demo.py [--database-url URL]   (default: a throw-away PostgreSQL database)
 """
@@ -16,6 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from sqlalchemy import select  # noqa: E402
 from sqlalchemy.exc import DBAPIError  # noqa: E402
 
+from sie.compliance import permission as perm  # noqa: E402
 from sie.storage import migrate, repos, repos_content, repos_ops  # noqa: E402
 from sie.storage.db import make_engine, make_session_factory, session_scope  # noqa: E402
 from sie.storage.enums import AccessBasisType  # noqa: E402
@@ -27,6 +29,18 @@ from tools import pgtemp  # noqa: E402
 # deliberately rejected INSERT is cleaned up. It is harmless (rows are rolled back, see the checks
 # below), so keep it out of the transcript. See TASKS.md notes.
 logging.getLogger("psycopg").setLevel(logging.ERROR)
+
+
+class _ShowDenials(logging.Handler):
+    """Print the permission gate's application-log lines inside the transcript (CG-2)."""
+
+    def emit(self, record: logging.LogRecord) -> None:
+        print(f"      (application log) denied: {record.action} -> {record.code}", flush=True)
+
+
+_gate_log = logging.getLogger("sie.compliance")
+_gate_log.addHandler(_ShowDenials())
+_gate_log.propagate = False
 
 
 def run(url: str) -> int:
@@ -81,7 +95,7 @@ def run(url: str) -> int:
             "4. recorded two bases (own channel, signed consent); "
             f"comments allowed by default: {own.comments_allowed or consent.comments_allowed}"
         )
-        own_id = own.basis_id
+        own_id, consent_id = own.basis_id, consent.basis_id
 
     must_reject(
         "5. deleting a source that has access bases", lambda s: s.delete(s.get(Source, source_id))
@@ -170,6 +184,48 @@ def run(url: str) -> int:
             select(AuditLog.action).order_by(AuditLog.audit_id.desc()).limit(2)
         ).all()
         say(f"15. task resolved by a human; latest audit entries: {', '.join(reversed(recent))}")
+
+    # ---- T05: the compliance gate ----
+    def expect(label: str, condition: bool) -> None:
+        nonlocal checks
+        if not condition:
+            raise AssertionError(f"expected: {label}")
+        checks += 1
+
+    with session_scope(factory) as session:
+        posts = perm.check_access(session, source_id, "read_posts")
+        comments = perm.check_access(session, source_id, "read_comments")
+        expect("consent allows posts, not comments", posts.allowed and not comments.allowed)
+        say(f"16. valid consent basis: read_posts allowed; read_comments -> {comments.code}")
+        stranger_id = repos.add_source(session, "telegram", "stranger_channel").source_id
+
+    with session_scope(factory) as session:
+        unknown = perm.check_access(session, stranger_id, "read_posts")
+        expect("a source with no basis is denied", unknown.code == "no_access_basis")
+        say(f"17. a source with NO access basis: read_posts -> {unknown.code}")
+
+    try:
+        perm.require_access(factory, stranger_id, "read_posts")
+    except perm.AccessDenied as denied:
+        expect("the gate raises", True)
+        with session_scope(factory) as session:
+            logged = session.scalars(
+                select(AuditLog).where(AuditLog.action == "access.denied")
+            ).all()
+        say(f"18. the gate refuses ({denied.decision.code}); audit denials so far: {len(logged)}")
+    else:
+        raise AssertionError("the gate let an unauthorized read through")
+
+    with session_scope(factory) as session:
+        media = perm.check_access(session, source_id, "download_media")
+        expect("media download is never granted by a basis", media.code == "action_not_supported")
+        say(f"19. download_media on a fully authorized source -> {media.code}")
+
+    with session_scope(factory) as session:
+        repos.revoke_access_basis(session, consent_id, actor="operator:demo")
+        after = perm.check_access(session, source_id, "read_posts")
+        expect("revocation takes effect at once", not after.allowed)
+        say(f"20. consent revoked -> read_posts now denied: {after.reasons[-1]}")
 
     engine.dispose()
     say(f"DEMO OK ({checks} protections verified; storage and compliance only).")

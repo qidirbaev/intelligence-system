@@ -32,11 +32,15 @@ a sampled path for sentiment and an attention path for flagged comments.
 11. **The schema backs the rules.** A `dropped` item cannot keep text (CHECK), audit samples and dead letters must
     expire, operator tasks cannot carry credentials, decisions must cite a real policy version.
 
+12. **One gate for every read.** Code never calls an adapter directly. It goes through `require_access`, which
+    denies by default: unknown source or action, other tenant, paused source, no valid basis, comments without
+    `comments_allowed`. Media download, commenter profiling and sensitive-trait inference are never granted by a basis.
+
 ## Module map (`src/sie/`)
 
 | Package | Responsibility | Tasks |
 |---|---|---|
-| `compliance` | access bases, permission engine | T05 |
+| `compliance` | permission engine (`permission.py`), provider allow-list (`providers.py`) | T02, T05 |
 | `policy` | bundle schema, logic, evaluator, manager | T06-T09 |
 | `language` | normalization, transliteration, language ID, matching | T10-T11 |
 | `ingest` | envelope, idempotent ingest | T12 |

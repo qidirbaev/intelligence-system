@@ -21,7 +21,7 @@ Planned (nothing built yet) / Deferred or Changed (differs from your request: se
 | V-05 | L2 Brain: continuous 24/7 plus on-demand research over one shared knowledge base | SKD 7 | Planned | T23, T29 | none yet |
 | V-06 | Agents keep local memory (M1-M3) and plan their own checks | SKD 4.5, 11 | Partial | T03, T14 | `tests/test_registry_models.py::test_agent_state_cursor_and_memory_roundtrip` |
 | V-07 | Agents propose improvements; controlled changes need human approval | SKD 4.4, 11.2 | Deferred | none | D-3 |
-| V-08 | Mandatory permission engine, separate from and checked before the priority engine | SKD 9 | Partial | T03, T05, T06, T09 | `tests/test_registry_models.py::test_policy_version_lifecycle_rules` |
+| V-08 | Mandatory permission engine, separate from and checked before the priority engine | SKD 9 | Partial | T03, T05, T06, T09 | `tests/test_registry_models.py::test_policy_version_lifecycle_rules`, `tests/test_permission.py::test_property_decision_matches_the_rule` |
 | V-09 | Human operations teams handle access problems through authorized paths | SKD 13 | Changed | T04 | `tests/test_operator_tasks.py::test_operator_task_lifecycle_is_audited`, D-3 |
 | V-10 | Multimodal input (text, image, audio, video); videos converted to text summaries | SKD 8, chat | Deferred | none | D-2 |
 | V-11 | Output flows Sink to Views to Dashboards | SKD 16 | Planned | T24, T30 | none yet |
@@ -39,9 +39,9 @@ Planned (nothing built yet) / Deferred or Changed (differs from your request: se
 | U-09 | Language engine for Uzbek (Cyrillic and Latin), Russian and mixed text | chat | Planned | T10, T11 | none yet |
 | U-10 | Policy format designed by me for the MVP | chat | Planned | T06 | none yet |
 | U-11 | Small tasks; run the whole project after each task; no deviation from what you asked | chat | Implemented | T03a | `tools/verify.py`, `tools/traceability.py`, `tests/test_conformance.py::test_traceability_matrix_is_consistent` |
-| CG-1 | Every source needs a documented access basis before any reading | TZ 2.2 | Partial | T03, T05 | `tests/test_registry_models.py::test_document_ref_required_except_for_own_channel`, `tests/test_registry_models.py::test_access_basis_invalid_type_rejected` |
-| CG-2 | Permission engine denies reads without a valid, unexpired, unrevoked basis; denials logged | TZ 2.2 | Planned | T05, T15 | none yet |
-| CG-3 | Comments only if comments_allowed (default false); owner consent alone does not allow them | TZ 2.2 | Partial | T03, T05, T25 | `tests/test_registry_models.py::test_access_basis_defaults_deny_comments`, `tests/test_conformance.py::test_comments_are_denied_by_default` |
+| CG-1 | Every source needs a documented access basis before any reading | TZ 2.2 | Partial | T03, T05, T15 | `tests/test_registry_models.py::test_document_ref_required_except_for_own_channel`, `tests/test_registry_models.py::test_access_basis_invalid_type_rejected`, `tests/test_permission.py::test_source_without_basis_is_denied_and_the_denial_is_audited` |
+| CG-2 | Permission engine denies reads without a valid, unexpired, unrevoked basis; denials logged | TZ 2.2 | Partial | T05, T15 | `tests/test_permission.py::test_revoking_a_basis_takes_effect_immediately`, `tests/test_permission.py::test_validity_window_boundaries`, `tests/test_permission.py::test_require_access_raises_but_the_denial_record_survives`, `tests/test_permission.py::test_repeated_denials_are_audited_once_per_window_but_always_logged` |
+| CG-3 | Comments only if comments_allowed (default false); owner consent alone does not allow them | TZ 2.2 | Partial | T03, T05, T25 | `tests/test_registry_models.py::test_access_basis_defaults_deny_comments`, `tests/test_conformance.py::test_comments_are_denied_by_default`, `tests/test_permission.py::test_owner_consent_alone_never_grants_comments`, `tests/test_permission.py::test_property_comments_are_never_easier_than_posts` |
 | CG-4 | No circumvention: obey waits, pause the source, open an operator task; no account or proxy rotation | TZ 2.2 | Partial | T03a, T04, T18 | `tests/test_conformance.py::test_no_evasion_tooling_in_source`, `tests/test_conformance.py::test_no_evasion_dependencies`, `tests/test_operator_tasks.py::test_operator_task_lifecycle_is_audited`, `tests/test_operator_tasks.py::test_unsafe_account_links_are_refused` |
 | CG-5 | Secrets never in logs or queues; sessions encrypted | TZ 2.2 | Partial | T02, T04, T18 | `tests/test_config.py::test_secrets_never_appear_in_repr_or_dump`, `tests/test_logging.py::test_secret_looking_fields_are_redacted`, `tests/test_operator_tasks.py::test_operator_task_never_stores_secrets`, `tests/test_content_models.py::test_dead_letter_masks_secrets_and_expires` |
 | CG-6 | Model providers: allow-list, default deny, cross-border needs sign-off | TZ 2.2 | Partial | T02, T22 | `tests/test_providers.py::test_empty_registry_denies_everything`, `tests/test_providers.py::test_cross_border_requires_signoff` |
@@ -60,7 +60,7 @@ Planned (nothing built yet) / Deferred or Changed (differs from your request: se
 | A-10 | Reliability: crash recovery, retries, dead letters, backpressure | TZ 5.9 | Planned | T13, T28 | none yet |
 | A-11 | Measurable processing: metrics, labeled sets, recall estimate | SKD principle 8 | Planned | T27, T31 | none yet |
 | A-12 | Reports separate facts, attributed claims, interpretations, conflicts and gaps | SKD 7.5 | Planned | T29 | none yet |
-| AC-1 | Acceptance: no source without a valid basis is ever read | TZ 12.4 | Planned | T05, T32 | none yet |
+| AC-1 | Acceptance: no source without a valid basis is ever read | TZ 12.4 | Partial | T05, T32 | `tests/test_permission.py::test_property_a_source_without_any_basis_is_never_readable` |
 | AC-2 | Acceptance: a new policy version changes decisions only from its effective time | TZ 12.4 | Planned | T09, T17, T32 | none yet |
 | AC-3 | Acceptance: a killed worker causes no loss or duplicates | TZ 12.4 | Planned | T13, T32 | none yet |
 | AC-4 | Acceptance: Cyrillic Uzbek, Latin Uzbek and Russian posts on one topic form one event | TZ 12.4 | Planned | T10, T11, T20, T32 | none yet |
@@ -80,3 +80,4 @@ Planned (nothing built yet) / Deferred or Changed (differs from your request: se
 | D-5 | Extras I added that you did not ask for: provider allow-list, append-only audit log, access-basis revocation record, expiry dates on dead letters and audit samples (privacy), tripwire tests against evasion tooling, this register. | Each one enforces a rule you or the compliance review need. | No |
 | D-6 | Gap found in my own TZ: it promised "operator tasks" but its data model had no table for them. Built in T04 (`operator_tasks`). | Found while writing this register. | No |
 | D-7 | The full TZ lives in the Claude doc, not in the repo. | Export is a manual step: Download as Markdown, save as `docs/TZ.md`. | No |
+| D-8 | Denial logging: every denial goes to the application log, but the permanent audit record is written once per hour per (source, action, reason). The TZ says "every denial is logged". | A scheduler that retries every few minutes would flood the append-only audit table with identical rows. | No |

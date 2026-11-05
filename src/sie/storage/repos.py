@@ -114,9 +114,18 @@ def revoke_access_basis(
 
 
 def append_audit(
-    session: Session, actor: str, action: str, object_ref: str, detail: dict | None = None
+    session: Session,
+    actor: str,
+    action: str,
+    object_ref: str,
+    detail: dict | None = None,
+    *,
+    ts: datetime | None = None,
 ) -> AuditLog:
+    """Append an audit entry. `ts` defaults to the database clock; tests may pass a time."""
     entry = AuditLog(actor=actor, action=action, object=object_ref, detail=detail or {})
+    if ts is not None:
+        entry.ts = ts
     session.add(entry)
     session.flush()
     return entry

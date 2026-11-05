@@ -1,5 +1,5 @@
 # intelligence-system (SIE): social media intelligence platform, demo / MVP
- 
+
 A policy-governed pipeline that collects *permitted* public posts, filters them in layers (L0, L1),
 and lets a central Brain summarize events, extract stances and measure sentiment. Telegram first.
 

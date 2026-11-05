@@ -31,7 +31,7 @@ Legend: `[x]` done, `[~]` partial, `[ ]` not started.
 | [x] | T03 | Migration 1 + models | Alembic init; persons, sources, access_basis, agent_state, policy_versions, audit_log; `tenant_id` everywhere | migration up/down works; repo tests pass |
 | [x] | T03a | Verification harness | `tools/verify.py`, `tools/demo.py`, requirements register `docs/TRACEABILITY.md` with checker, tripwire tests, network guard | `python tools/verify.py` is green |
 | [x] | T04 | Migration 2 + models | content_items, decisions, rechecks, audit_samples, dead_letters, budget_counters, **operator_tasks** (gap found in the TZ: CG-4 needs a queue for access problems) | unique key (source_id, platform_msg_id, kind) enforced; upsert test |
-| [ ] | T05 | Permission engine | `compliance/`: access-basis checks CG-1..CG-3, expiry/revocation, denial logging | source without valid basis is always denied; comments denied unless allowed |
+| [x] | T05 | Permission engine | `compliance/`: access-basis checks CG-1..CG-3, expiry/revocation, denial logging | source without valid basis is always denied; comments denied unless allowed |
 | [ ] | T06 | Policy bundle schema | pydantic models for the YAML bundle, loader, example `policies/policy_v0001.yaml` | example validates; bad bundles give clear errors |
 | [ ] | T07 | Three-valued logic + conditions | TRUE/FALSE/UNKNOWN, all/any/not, condition registry (source_tag, text_matches_topic, view_count_gte, ...) | property-based tests for the truth tables |
 | [ ] | T08 | Rule evaluator | first-match, `on_unknown`, DEFER/recheck info, Decision objects with reasons | table-driven tests incl. stale metrics -> UNKNOWN |
@@ -40,8 +40,8 @@ Legend: `[x]` done, `[~]` partial, `[ ]` not started.
 | [ ] | T11 | Language engine B | script detection, language ID (uz/ru/mixed/other), keyword stem compiler + suffix-tolerant matcher, SimHash | matching works across Cyrillic/Latin/Russian fixtures |
 | [ ] | T12 | Envelope + idempotent ingest | envelope model, upsert into content_items, decision write | same envelope twice -> one row |
 | [ ] | T13 | Job queue + workers | Postgres `SKIP LOCKED` queue, leases, backoff, dead letters | killed worker -> job re-leased, no duplicates |
-| [ ] | T14 | Scheduler + agent state | `agent_state`, next_check_at from posting rate, envelope clamps | interval never leaves the envelope |
-| [ ] | T15 | Adapter interface + fake adapter + E2E | `SourceAdapter` protocol, FakeAdapter, pipeline adapter -> ingest -> normalize -> L0 -> decision | synthetic posts flow end to end (Phase 1 milestone) |
+| [ ] | T14 | Scheduler + agent state | `agent_state`, next_check_at from posting rate, envelope clamps, **calls `check_access` / `granted_actions` when scheduling a fetch (first of the two CG-2 checks)** | interval never leaves the envelope |
+| [ ] | T15 | Adapter interface + fake adapter + E2E | `SourceAdapter` protocol, FakeAdapter, pipeline adapter -> ingest -> normalize -> L0 -> decision, **`GatedAdapter`: wraps every adapter and calls `require_access` before each fetch, metrics refresh and comment read (the second CG-2 check)** | synthetic posts flow end to end (Phase 1 milestone) |
 | [ ] | T16 | DROP handling + retention | null text on DROP, audit samples with TTL, retention job (purges expired audit samples and dead letters), **revocation hook: revoking an access basis flags that source's items for review or deletion (CG-7)** | dropped text gone; samples expire |
 | [ ] | T17 | DEFER rechecks | decaying schedule, metric freshness, re-evaluate under **current** policy | pending recheck uses new version after publish |
 | [ ] | T18 | Telegram adapter (read-only) | Telethon adapter behind the gate, error classification (flood wait, ban), encrypted session helper, dev runbook | unit tests with mocked client; never runs in CI |
@@ -110,4 +110,15 @@ Legend: `[x]` done, `[~]` partial, `[ ]` not started.
 - T04 gap found: CG-7 says revoking a basis must flag derived data, but no task covered it; added to T16.
 - Reminder: after a break, PostgreSQL may be down and database tests silently SKIP under plain `pytest`.
   `python tools/verify.py` treats skips as failures, so always finish with it.
+- T05: the gate API is `sie.compliance.permission`: `evaluate_access` (pure), `check_access(session, ...)` (never
+  raises, logs denials inside YOUR transaction) and `require_access(session_factory, ...)` (own transaction, commits the
+  denial record, then raises `AccessDenied`). Always use `require_access` in code that raises on denial.
+- T05 for T15: AC-1 ("no unauthorized read, ever") is only true once every adapter is wrapped in `GatedAdapter`
+  and a test proves the wrapped adapter is never called when access is denied. Do not let any code call an adapter
+  directly.
+- T05 for T06/T09: the policy bundle's `permissions` section (allowed_sources, allowed_actions, denied_actions)
+  must be added to the engine as a further check that can only narrow what bases allow. Until then the engine denies
+  everything except the three read actions an access basis can grant.
+- T05: mutation-tested: 8 deliberate breakages of the engine (comments check, revocation, expiry boundary, media
+  grant, paused source, denial logging, tenant check, "any basis") were each caught by a named test.
 
